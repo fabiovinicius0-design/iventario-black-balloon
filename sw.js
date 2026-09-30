@@ -1,6 +1,6 @@
 // Guarda os arquivos do app para abrir mesmo com internet ruim.
 // Os dados do estoque sempre vêm da planilha (não passam por aqui).
-const CACHE = "bb-estoque-v1";
+const CACHE = "bb-estoque-v2";
 const ARQUIVOS = ["./", "./index.html", "./manifest.webmanifest", "./logo-branco.png",
   "./icone-192.png", "./icone-512.png", "./apple-touch-icon.png"];
 

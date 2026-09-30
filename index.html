@@ -285,7 +285,10 @@
 
   // config = { u: endereço do Apps Script, p: PIN, nome: quem está contando }
   let cfg = ler("config", {}) || {};
-  importarLink(location.hash);
+  // Endereço do servidor da planilha. Sozinho não dá acesso: cada pessoa ainda precisa do código (PIN).
+  const SERVIDOR = "https://script.google.com/macros/s/AKfycbzGwizuiRzQwS1qSlBrwOgm3DetGd7dFF7bq5UkMubHY_mbUMbiwY_0JjJijUSS-QmAcg/exec";
+  if (!cfg.u) cfg.u = SERVIDOR;
+  if (importarLink(location.hash)) history.replaceState(null, "", location.pathname);
 
   const S = {
     produtos: new Map(),
@@ -325,7 +328,6 @@
   const hojeDDMM = () => { const d = new Date(); return String(d.getDate()).padStart(2, "0") + String(d.getMonth() + 1).padStart(2, "0"); };
   const novoId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
 
-  function b64url(txt) { return btoa(unescape(encodeURIComponent(txt))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
   function deB64url(txt) { return decodeURIComponent(escape(atob(txt.replace(/-/g, "+").replace(/_/g, "/")))); }
   function importarLink(texto) {
     const m = String(texto || "").match(/#c=([A-Za-z0-9_-]+)/);
@@ -338,7 +340,7 @@
       return true;
     } catch { return false; }
   }
-  const linkEquipe = () => location.origin + location.pathname + "#c=" + b64url(JSON.stringify({ u: cfg.u, p: cfg.p || "" }));
+  const linkSite = () => location.origin + location.pathname;
 
   let toastTimer;
   function toast(msg) {
@@ -350,7 +352,7 @@
   function status(s, txt) { const el = $("#status"); el.dataset.s = s; el.querySelector("span").textContent = txt; }
   function statusPadrao() {
     const pend = fila.length + acumulado.size;
-    if (!cfg.u) status("erro", "Não configurado");
+    if (!cfg.p) status("erro", "Digite o código de acesso");
     else if (!S.online) status("erro", pend ? `Sem internet · ${pend} alteração(ões) na fila` : "Sem internet");
     else if (pend || processando) status("salvando", "Salvando na planilha…");
     else if (!S.carregado) status("carregando", "Carregando…");
@@ -374,7 +376,7 @@
   }
 
   async function atualizar(forcar) {
-    if (!cfg.u || atualizando) return;
+    if (!cfg.p || atualizando) return;
     if (!forcar && (fila.length || acumulado.size || processando)) return;
     atualizando = true;
     const inicio = Date.now();
@@ -387,7 +389,7 @@
       S.versao = j.versao;
     } catch (e) {
       if (e.code === "rede") S.online = false;
-      else if (e.code === "pin") { toast(e.message); abrirConfig(); }
+      else if (e.code === "pin") { cfg.p = ""; gravar("config", cfg); abrirEntrar("O código de acesso mudou. Peça o novo para a gerência."); }
       else toast(e.message);
     } finally {
       atualizando = false;
@@ -454,7 +456,7 @@
           }
           fila.shift(); gravar("fila", fila);
           toast(e.message);
-          if (e.code === "pin") abrirConfig();
+          if (e.code === "pin") { cfg.p = ""; gravar("config", cfg); abrirEntrar("O código de acesso mudou. Peça o novo para a gerência."); }
           S.versao = null;
           continue;
         }
@@ -544,8 +546,8 @@
     if (forcar || ass !== S.assinatura || !main.querySelector(".item")) {
       S.assinatura = ass;
       S.editando = null;
-      if (!cfg.u) {
-        main.innerHTML = `<div class="aviso-vazio"><strong>Conecte a planilha</strong>Abra o link que a gerência mandou ou configure o endereço da planilha.<button class="btn primario" type="button" data-config>Configurar</button></div>`;
+      if (!cfg.p) {
+        main.innerHTML = `<div class="aviso-vazio"><strong>Digite o código de acesso</strong>A gerência manda um código de 6 números junto com o link.<button class="btn primario" type="button" data-config>Entrar</button></div>`;
       } else if (!S.carregado) {
         if (!S.online) main.innerHTML = `<div class="aviso-vazio"><strong>Sem conexão com a planilha</strong>Verifique a internet. O app tenta de novo sozinho.</div>`;
         return;
@@ -588,7 +590,7 @@
 
   // ---------- contagem ----------
   $("#lista").addEventListener("click", (e) => {
-    if (e.target.closest("[data-config]")) return abrirConfig();
+    if (e.target.closest("[data-config]")) return abrirEntrar();
     const b = e.target.closest("[data-acao]");
     if (!b) return;
     const p = S.produtos.get(b.closest(".item")?.dataset.id);
@@ -687,7 +689,7 @@
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#veu").hidden) fecharFolha(); });
 
   $("#btn-menu").addEventListener("click", () => {
-    const conectado = !!cfg.u;
+    const conectado = !!cfg.p;
     abrirFolha(`
       <h2>Menu</h2>
       <div class="menu-lista">
@@ -696,7 +698,7 @@
         ${S.planilha ? `<a href="${esc(S.planilha)}" target="_blank" rel="noopener">Abrir planilha no Google<small>Ver a aba ESTOQUE, o HISTÓRICO e as contagens antigas</small></a>` : ""}
         <button type="button" data-m="equipe">Link da equipe<small>Quem tiver o link consegue contar e alterar</small></button>
         <button type="button" data-m="zerar">Zerar contagem<small>Guarda a contagem numa aba ${hojeDDMM()} e zera tudo</small></button>` : ""}
-        <button type="button" data-m="config">Configurações<small>${conectado ? "Seu nome e conexão com a planilha" : "Conectar à planilha"}</small></button>
+        <button type="button" data-m="config">${conectado ? "Configurações<small>Seu nome e código de acesso</small>" : "Entrar<small>Digitar o código de acesso</small>"}</button>
       </div>
       <button class="btn" type="button" data-m="fechar">Fechar</button>
       <p class="credito">Iventário Estoque Black Balloon · criado por Fabio Ferraz</p>`, (f) => {
@@ -707,78 +709,104 @@
         if (m === "exportar") { fecharFolha(); exportar(); }
         if (m === "equipe") mostrarLinkEquipe();
         if (m === "zerar") zerar();
-        if (m === "config") abrirConfig();
+        if (m === "config") conectado ? abrirConfig() : abrirEntrar();
       });
     });
   });
+
+  // testa o código na planilha; se der certo, guarda e carrega o estoque
+  async function conectar(novo, btn, textoBtn) {
+    btn.disabled = true; btn.textContent = "Entrando…";
+    const anterior = cfg;
+    cfg = { ...cfg, ...novo };
+    try {
+      const j = await api("listar");
+      gravar("config", cfg);
+      S.versao = j.versao; S.online = true;
+      aplicarLista(j);
+      fecharFolha();
+      toast("Pronto! Pode começar a contar.");
+    } catch (err) {
+      cfg = anterior;
+      btn.disabled = false; btn.textContent = textoBtn;
+      toast(err.code === "pin" ? "Código incorreto. Confira com a gerência."
+        : err.code === "rede" ? "Sem internet ou planilha fora do ar. Tente de novo." : err.message);
+    }
+    statusPadrao();
+    render(true);
+  }
+
+  function abrirEntrar(aviso) {
+    abrirFolha(`<h2>Entrar</h2>
+      <p>Digite o <strong>código de acesso</strong> (6 números) que a gerência mandou junto com o link.</p>
+      ${aviso ? `<p class="alerta">${esc(aviso)}</p>` : ""}
+      <form id="f" class="acoes" style="gap:14px">
+        <label>Código de acesso
+          <input id="e-pin" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="000000"
+            style="font-size:28px;letter-spacing:.3em;text-align:center"></label>
+        <label>Seu nome <small>Opcional — aparece no histórico ao lado de cada alteração.</small>
+          <input id="e-nome" value="${esc(cfg.nome || "")}" autocomplete="name" placeholder="ex.: Fabio"></label>
+        <button class="btn primario" type="submit">Entrar</button>
+      </form>`, (f) => {
+      f.querySelector("#f").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const pin = f.querySelector("#e-pin").value.replace(/\D/g, "");
+        if (!pin) return toast("Digite o código de acesso.");
+        conectar({ u: cfg.u || SERVIDOR, p: pin, nome: f.querySelector("#e-nome").value.trim() },
+          f.querySelector("[type=submit]"), "Entrar");
+      });
+    });
+  }
 
   function abrirConfig() {
     abrirFolha(`<h2>Configurações</h2>
       <form id="f" class="acoes" style="gap:14px">
         <label>Seu nome<small>Aparece no histórico da planilha ao lado de cada alteração.</small>
           <input id="c-nome" value="${esc(cfg.nome || "")}" autocomplete="name" placeholder="ex.: Fabio"></label>
-        <label>Link da equipe ou endereço da planilha<small>Cole o link que você recebeu, ou o endereço do Apps Script (termina em /exec).</small>
-          <input id="c-url" value="${esc(cfg.u || "")}" autocomplete="off" inputmode="url" placeholder="https://script.google.com/macros/s/…/exec"></label>
-        <label>Código de acesso (PIN)<small>O mesmo PIN escrito no código da planilha. Já vem dentro do link da equipe.</small>
+        <label>Código de acesso<small>Os 6 números que a gerência passou.</small>
           <input id="c-pin" value="${esc(cfg.p || "")}" autocomplete="off" inputmode="numeric"></label>
+        <details>
+          <summary style="cursor:pointer;color:var(--tinta-suave);font-size:14px">Avançado</summary>
+          <label style="margin-top:10px">Endereço do servidor da planilha<small>Só mude se a planilha for trocada. Termina em /exec.</small>
+            <input id="c-url" value="${esc(cfg.u || SERVIDOR)}" autocomplete="off" inputmode="url"></label>
+        </details>
         <div class="acoes">
-          <button class="btn primario" type="submit">Salvar e conectar</button>
+          <button class="btn primario" type="submit">Salvar</button>
           <button class="btn" type="button" data-cancelar>Cancelar</button>
         </div>
       </form>`, (f) => {
       f.querySelector("[data-cancelar]").onclick = fecharFolha;
-      f.querySelector("#f").addEventListener("submit", async (e) => {
+      f.querySelector("#f").addEventListener("submit", (e) => {
         e.preventDefault();
-        const nome = f.querySelector("#c-nome").value.trim();
-        let url = f.querySelector("#c-url").value.trim();
-        let pin = f.querySelector("#c-pin").value.trim();
-        if (/#c=/.test(url)) {
-          const antes = { ...cfg };
-          if (importarLink(url)) { url = cfg.u; pin = cfg.p || ""; } else cfg = antes;
-        }
-        if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)) return toast("O endereço precisa começar com https://script.google.com/");
-        const btn = f.querySelector("[type=submit]"); btn.disabled = true; btn.textContent = "Conectando…";
-        const anterior = cfg;
-        cfg = { u: url, p: pin, nome };
-        try {
-          const j = await api("listar");
-          gravar("config", cfg);
-          S.versao = j.versao; S.online = true;
-          aplicarLista(j);
-          if (!location.hash.includes("#c=")) history.replaceState(null, "", linkEquipe());
-          fecharFolha(); toast("Conectado à planilha.");
-        } catch (err) {
-          cfg = anterior;
-          btn.disabled = false; btn.textContent = "Salvar e conectar";
-          toast(err.code === "rede"
-            ? "Não consegui falar com a planilha. Confira o endereço e se a implantação está como “Qualquer pessoa”."
-            : err.message);
-        }
-        statusPadrao();
+        const url = f.querySelector("#c-url").value.trim() || SERVIDOR;
+        if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)) return toast("O endereço do servidor precisa começar com https://script.google.com/");
+        conectar({ u: url, p: f.querySelector("#c-pin").value.replace(/\D/g, ""), nome: f.querySelector("#c-nome").value.trim() },
+          f.querySelector("[type=submit]"), "Salvar");
       });
     });
   }
 
   function mostrarLinkEquipe() {
-    const link = linkEquipe();
+    const link = linkSite();
+    const mensagem = `Contagem do estoque Black Balloon\n${link}\nCódigo de acesso: ${cfg.p}`;
     abrirFolha(`<h2>Link da equipe</h2>
-      <p>Mande este link para quem vai contar. Quem abrir consegue ver e alterar o estoque — não precisa de conta.</p>
-      <div class="link-equipe" id="link">${esc(link)}</div>
-      <p class="alerta">O link já leva o PIN. Não publique em lugar aberto; se vazar, troque o PIN no código da planilha e mande um link novo.</p>
+      <p>Mande o link e o código para quem vai contar. Com os dois, a pessoa vê e altera o estoque — não precisa de conta.</p>
+      <div class="link-equipe" id="msg">${esc(mensagem).replace(/\n/g, "<br>")}</div>
+      <p class="alerta">Mande só para a equipe. Se o código vazar, peça para trocar e mande o código novo.</p>
       <div class="acoes">
         ${navigator.share ? `<button class="btn primario" type="button" data-l="compartilhar">Compartilhar (WhatsApp…)</button>` : ""}
-        <button class="btn ${navigator.share ? "" : "primario"}" type="button" data-l="copiar">Copiar link</button>
+        <button class="btn ${navigator.share ? "" : "primario"}" type="button" data-l="copiar">Copiar mensagem</button>
         <button class="btn" type="button" data-l="fechar">Fechar</button>
       </div>`, (f) => {
       f.addEventListener("click", async (e) => {
         const l = e.target.closest("[data-l]")?.dataset.l;
         if (l === "fechar") fecharFolha();
         if (l === "copiar") {
-          try { await navigator.clipboard.writeText(link); toast("Link copiado."); }
-          catch { const r = document.createRange(); r.selectNodeContents(f.querySelector("#link")); getSelection().removeAllRanges(); getSelection().addRange(r); toast("Selecionei o link — copie com Ctrl+C."); }
+          try { await navigator.clipboard.writeText(mensagem); toast("Mensagem copiada."); }
+          catch { const r = document.createRange(); r.selectNodeContents(f.querySelector("#msg")); getSelection().removeAllRanges(); getSelection().addRange(r); toast("Selecionei a mensagem — copie com Ctrl+C."); }
         }
         if (l === "compartilhar") {
-          try { await navigator.share({ title: "Iventário Estoque Black Balloon", text: "Link para a contagem do estoque:", url: link }); } catch {}
+          try { await navigator.share({ text: mensagem }); } catch {}
         }
       });
     });
@@ -969,7 +997,7 @@
   // ---------- início ----------
   function iniciar() {
     const c = ler("cache", null);
-    if (c && Array.isArray(c.produtos) && cfg.u) {
+    if (c && Array.isArray(c.produtos) && cfg.p) {
       S.locais = c.locais || LOCAIS_PADRAO;
       S.planilha = c.planilha || null;
       c.produtos.forEach((p) => S.produtos.set(p.id, p));
@@ -982,7 +1010,7 @@
     renderLocais();
     render(true);
     statusPadrao();
-    if (!cfg.u) return abrirConfig();
+    if (!cfg.p) return abrirEntrar();
     if (fila.length) processar().then(() => atualizar(true));
     else atualizar(true);
     setInterval(() => { if (document.visibilityState === "visible") { processar(); atualizar(); } }, INTERVALO);
