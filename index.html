@@ -36,6 +36,8 @@
     --menos-tinta: #F7F5EF;
     --flash-mais: #CFE8C4;
     --flash-menos: #F3CBC4;
+    --pendente: #F7EDD3;
+    --ouro-texto: #8F6A10;
     --ok: #5FA35A;
     --aviso: #D08A1C;
     --erro: #C0483A;
@@ -60,6 +62,8 @@
       --menos: #34322E;
       --flash-mais: #2F4A2B;
       --flash-menos: #5A2A24;
+      --pendente: #2A2416;
+      --ouro-texto: #E0B44A;
       --sombra: 0 -6px 24px rgba(0, 0, 0, .5);
     }
   }
@@ -139,6 +143,14 @@
     background: var(--superficie); border-bottom: 1px solid var(--linha); min-height: 64px;
   }
   .item:nth-child(even) { background: var(--superficie-2); }
+  .item { flex-wrap: wrap; }
+  .itens .item.pendente { background: var(--pendente); box-shadow: inset 4px 0 0 var(--ouro); }
+  .pendente .qtd { color: var(--ouro-texto); }
+  .pendente .item-nome small { color: var(--ouro-texto); font-weight: 600; }
+  .aplicar { flex-basis: 100%; display: flex; justify-content: flex-end; gap: 8px; padding-bottom: 2px; }
+  .btn-aplicar, .btn-desfazer { border-radius: 10px; padding: 10px 16px; font-weight: 700; font-size: 15px; touch-action: manipulation; }
+  .btn-aplicar { background: var(--ouro); color: #1A1A1A; border: 0; min-width: 132px; }
+  .btn-desfazer { background: transparent; color: var(--tinta-suave); border: 1px solid var(--linha); }
   .item-nome {
     flex: 1; min-width: 0; text-align: left; background: none; border: 0; padding: 4px 0;
     font-size: 16px; font-weight: 500; line-height: 1.25; overflow-wrap: anywhere;
@@ -302,8 +314,10 @@
     editando: null,
     assinatura: "",
   };
-  let fila = ler("fila", []);         // alterações esperando para ir à planilha
-  const acumulado = new Map();         // toques rápidos juntados antes de enviar
+  let fila = ler("fila", []);         // alterações aplicadas esperando para ir à planilha
+  // alterações ainda não aplicadas: "id|local" -> { delta } (+/−) ou { valor } (digitado)
+  const rascunho = new Map(Object.entries(ler("rascunho", {}) || {}));
+  const salvarRascunho = () => gravar("rascunho", Object.fromEntries(rascunho));
   let processando = false, atualizando = false, ultimaConfirmacao = 0, retentativa = null;
 
   // ---------- utilidades ----------
@@ -325,6 +339,12 @@
   const qtdDe = (p, l) => Number((p.qtd || {})[l]) || 0;
   const totalDe = (p) => arred(S.locais.reduce((s, l) => s + qtdDe(p, l), 0));
   const valorDe = (p) => totalDe(p) * (Number(p.custo) || 0);
+  // o que aparece no contador: o valor da planilha com a alteração ainda não aplicada por cima
+  function valorTela(p, l) {
+    const r = rascunho.get(p.id + "|" + l);
+    if (!r) return qtdDe(p, l);
+    return r.valor !== undefined ? r.valor : Math.max(0, arred(qtdDe(p, l) + r.delta));
+  }
   const hojeDDMM = () => { const d = new Date(); return String(d.getDate()).padStart(2, "0") + String(d.getMonth() + 1).padStart(2, "0"); };
   const novoId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
 
@@ -351,11 +371,13 @@
   }
   function status(s, txt) { const el = $("#status"); el.dataset.s = s; el.querySelector("span").textContent = txt; }
   function statusPadrao() {
-    const pend = fila.length + acumulado.size;
+    const pend = fila.length;
+    const n = rascunho.size;
     if (!cfg.p) status("erro", "Digite o código de acesso");
     else if (!S.online) status("erro", pend ? `Sem internet · ${pend} alteração(ões) na fila` : "Sem internet");
     else if (pend || processando) status("salvando", "Salvando na planilha…");
     else if (!S.carregado) status("carregando", "Carregando…");
+    else if (n) status("salvando", n === 1 ? "1 produto sem aplicar" : `${n} produtos sem aplicar`);
     else status("ok", "Sincronizado");
   }
 
@@ -377,14 +399,14 @@
 
   async function atualizar(forcar) {
     if (!cfg.p || atualizando) return;
-    if (!forcar && (fila.length || acumulado.size || processando)) return;
+    if (!forcar && (fila.length || processando)) return;
     atualizando = true;
     const inicio = Date.now();
     try {
       const j = await api("listar", forcar ? {} : { v: S.versao || "" });
       S.online = true;
       // descarta leituras que começaram antes de uma alteração nossa ser confirmada
-      if (inicio < ultimaConfirmacao || fila.length || acumulado.size || processando) return;
+      if (inicio < ultimaConfirmacao || fila.length || processando) return;
       if (!j.igual) aplicarLista(j);
       S.versao = j.versao;
     } catch (e) {
@@ -409,15 +431,13 @@
     gravar("cache", { locais: S.locais, planilha: S.planilha, produtos: [...S.produtos.values()] });
   }
 
-  // valor na tela = valor confirmado pela planilha + alterações que ainda não chegaram lá
+  // valor confirmado pela planilha + alterações aplicadas que ainda não chegaram lá
   function projetar(id, local, base) {
     let v = base;
     for (const op of fila) {
       if (op.id !== id || op.local !== local) continue;
       v = op.acao === "mover" ? Math.max(0, arred(v + op.delta)) : op.valor;
     }
-    const a = acumulado.get(id + "|" + local);
-    if (a) v = Math.max(0, arred(v + a.delta));
     return v;
   }
 
@@ -429,14 +449,6 @@
     processar();
   }
 
-  function soltarAcumulado(chave) {
-    const a = acumulado.get(chave);
-    if (!a) return;
-    clearTimeout(a.timer);
-    acumulado.delete(chave);
-    if (a.delta) enfileirar({ acao: "mover", id: a.id, local: a.local, delta: a.delta });
-  }
-  function soltarTudo() { for (const k of [...acumulado.keys()]) soltarAcumulado(k); }
 
   async function processar() {
     if (processando || !fila.length) return;
@@ -517,8 +529,10 @@
   function assinatura() {
     return [S.local, S.busca, ...[...S.produtos.values()].map((p) => p.id + "|" + p.nome + "|" + p.categoria + "|" + p.ordem)].join("§");
   }
+  const pendente = (p) => S.local !== RESUMO && rascunho.has(p.id + "|" + S.local);
   function subtexto(p) {
     if (S.local === RESUMO) return S.locais.map((l) => `${l} ${fmtQtd(qtdDe(p, l))}`).join(" · ");
+    if (pendente(p)) return `era ${fmtQtd(qtdDe(p, S.local))} → ${fmtQtd(valorTela(p, S.local))} · toque em Aplicar`;
     const partes = [];
     if (p.custo) partes.push(fmtReal(p.custo));
     partes.push("total " + fmtQtd(totalDe(p)));
@@ -531,12 +545,17 @@
         <div class="resumo-total"><strong data-total>${fmtQtd(totalDe(p))}</strong><small data-valor>${fmtReal(valorDe(p))}</small></div>
       </li>`;
     }
-    return `<li class="item" data-id="${esc(p.id)}">
+    const pend = pendente(p);
+    return `<li class="item${pend ? " pendente" : ""}" data-id="${esc(p.id)}">
       <button class="item-nome" type="button" data-acao="editar">${esc(p.nome)}<small data-sub>${esc(subtexto(p))}</small></button>
       <div class="contador">
         <button class="menos" type="button" data-acao="menos" aria-label="Tirar 1 de ${esc(p.nome)}">−</button>
-        <button class="qtd" type="button" data-acao="digitar" data-qtd aria-label="Quantidade de ${esc(p.nome)} em ${esc(S.local)}">${fmtQtd(qtdDe(p, S.local))}</button>
+        <button class="qtd" type="button" data-acao="digitar" data-qtd aria-label="Quantidade de ${esc(p.nome)} em ${esc(S.local)}">${fmtQtd(valorTela(p, S.local))}</button>
         <button class="mais" type="button" data-acao="mais" aria-label="Somar 1 a ${esc(p.nome)}">+</button>
+      </div>
+      <div class="aplicar" data-aplicar ${pend ? "" : "hidden"}>
+        <button class="btn-desfazer" type="button" data-acao="desfazer">Desfazer</button>
+        <button class="btn-aplicar" type="button" data-acao="aplicar">Aplicar ✓</button>
       </div>
     </li>`;
   }
@@ -575,7 +594,9 @@
       const sub = li.querySelector("[data-sub]");
       if (sub) sub.textContent = subtexto(p);
       const q = li.querySelector("[data-qtd]");
-      if (q && S.editando !== id) q.textContent = fmtQtd(qtdDe(p, S.local));
+      if (q && S.editando !== id) q.textContent = fmtQtd(valorTela(p, S.local));
+      const ap = li.querySelector("[data-aplicar]");
+      if (ap) { const pend = pendente(p); ap.hidden = !pend; li.classList.toggle("pendente", pend); }
       const t = li.querySelector("[data-total]");
       if (t) t.textContent = fmtQtd(totalDe(p));
       const v = li.querySelector("[data-valor]");
@@ -605,25 +626,51 @@
       manterTelaAcesa();
     } else if (acao === "digitar") {
       digitar(b, p);
+    } else if (acao === "aplicar") {
+      aplicar(p, S.local);
+    } else if (acao === "desfazer") {
+      rascunho.delete(p.id + "|" + S.local);
+      salvarRascunho();
+      atualizarNumeros(p.id);
+      statusPadrao();
     } else if (acao === "editar") {
       editarProduto(p);
     }
   });
 
+  // + e − só mudam a tela; a planilha só recebe quando tocar em Aplicar
+  function guardarRascunho(p, local, r) {
+    const chave = p.id + "|" + local;
+    const semMudanca = r.valor !== undefined ? r.valor === qtdDe(p, local) : !r.delta;
+    if (semMudanca) rascunho.delete(chave); else rascunho.set(chave, r);
+    salvarRascunho();
+    atualizarNumeros(p.id);
+    statusPadrao();
+  }
+
   function mover(p, local, delta) {
+    const atual = valorTela(p, local);
+    const novo = Math.max(0, arred(atual + delta));
+    if (novo === atual) return;
+    const r = rascunho.get(p.id + "|" + local);
+    guardarRascunho(p, local, r && r.valor !== undefined ? { valor: novo } : { delta: arred(novo - qtdDe(p, local)) });
+  }
+
+  function aplicar(p, local) {
+    const chave = p.id + "|" + local;
+    const r = rascunho.get(chave);
+    if (!r) return;
     const antes = qtdDe(p, local);
-    const depois = Math.max(0, arred(antes + delta));
-    if (depois === antes) return;
+    const depois = valorTela(p, local);
+    rascunho.delete(chave);
+    salvarRascunho();
     p.qtd = { ...p.qtd, [local]: depois };
+    enfileirar(r.valor !== undefined
+      ? { acao: "definir", id: p.id, local, valor: r.valor }
+      : { acao: "mover", id: p.id, local, delta: r.delta });
     atualizarNumeros(p.id);
     renderRodape();
-    const chave = p.id + "|" + local;
-    const a = acumulado.get(chave) || { id: p.id, local, delta: 0, timer: null };
-    a.delta = arred(a.delta + (depois - antes));
-    clearTimeout(a.timer);
-    a.timer = setTimeout(() => soltarAcumulado(chave), 450);
-    acumulado.set(chave, a);
-    statusPadrao();
+    toast(`Aplicado: ${p.nome} ${fmtQtd(antes)} → ${fmtQtd(depois)}`);
   }
 
   function digitar(botao, p) {
@@ -632,7 +679,7 @@
     const inp = document.createElement("input");
     inp.className = "qtd-input";
     inp.inputMode = "decimal";
-    inp.value = fmtQtd(qtdDe(p, local));
+    inp.value = fmtQtd(valorTela(p, local));
     inp.setAttribute("aria-label", `Quantidade de ${p.nome} em ${local}`);
     botao.replaceWith(inp);
     inp.focus(); inp.select();
@@ -643,15 +690,10 @@
       if (salvar) {
         const n = lerNumero(inp.value);
         if (Number.isNaN(n) || n < 0) toast("Quantidade inválida. Use números, ex.: 12 ou 0,8.");
-        else if (arred(n) !== qtdDe(p, local)) {
-          soltarAcumulado(p.id + "|" + local);
-          p.qtd = { ...p.qtd, [local]: arred(n) };
-          enfileirar({ acao: "definir", id: p.id, local, valor: arred(n) });
-          atualizarNumeros(p.id); renderRodape();
-        }
+        else if (arred(n) !== valorTela(p, local)) guardarRascunho(p, local, { valor: arred(n) });
       }
       inp.replaceWith(botao);
-      botao.textContent = fmtQtd(qtdDe(p, local));
+      botao.textContent = fmtQtd(valorTela(p, local));
     };
     inp.addEventListener("keydown", (e) => {
       if (e.key === "Enter") concluir(true);
@@ -661,10 +703,8 @@
   }
 
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") soltarTudo();
-    else { atualizar(); if (telaPedida) manterTelaAcesa(true); }
+    if (document.visibilityState === "visible") { atualizar(); if (telaPedida) manterTelaAcesa(true); }
   });
-  window.addEventListener("pagehide", soltarTudo);
   window.addEventListener("online", () => { S.online = true; processar(); atualizar(); });
 
   let telaPedida = false;
@@ -873,6 +913,7 @@
   function zerar() {
     abrirFolha(`<h2>Zerar contagem?</h2>
       <p>A contagem atual fica guardada numa aba <strong>${hojeDDMM()}</strong> da planilha do Google, como na planilha original. Depois todas as quantidades voltam a 0 em todos os locais.</p>
+      ${rascunho.size ? `<p class="alerta">${rascunho.size === 1 ? "1 produto tem alteração" : rascunho.size + " produtos têm alteração"} sem aplicar neste celular — ela será descartada.</p>` : ""}
       <div class="acoes">
         <button class="btn perigo" type="button" data-z="sim">Guardar e zerar</button>
         <button class="btn" type="button" data-z="exportar">Baixar Excel antes</button>
@@ -886,7 +927,6 @@
         f.querySelectorAll("button").forEach((b) => (b.disabled = true));
         const txt = f.querySelector("p");
         txt.textContent = "Enviando alterações pendentes…";
-        soltarTudo();
         for (let i = 0; i < 60 && (fila.length || processando); i++) {
           if (!processando) processar();
           await new Promise((r) => setTimeout(r, 300));
@@ -900,6 +940,7 @@
         txt.textContent = "Guardando a contagem e zerando…";
         try {
           const j = await api("zerar", { uid: novoId() });
+          rascunho.clear(); salvarRascunho();
           fecharFolha(); toast(`Contagem guardada na aba ${j.aba} e zerada.`);
           atualizar(true);
         } catch (err) {
