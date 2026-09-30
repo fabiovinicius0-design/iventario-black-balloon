@@ -1,0 +1,998 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Iventario Estoque Black Balloon</title>
+<meta name="description" content="Contagem de estoque do Black Balloon — criado por Fabio Ferraz">
+<meta name="theme-color" content="#1A1A1A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Black Balloon">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icone-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=Barlow:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    color-scheme: light;
+    --chao: #F7F5EF;
+    --superficie: #FFFFFF;
+    --superficie-2: #FBFAF6;
+    --tinta: #1A1A1A;
+    --tinta-suave: #6B6558;
+    --linha: #E6E1D5;
+    --ouro: #C9971E;
+    --ouro-tinta: #1A1A1A;
+    --barra: #1A1A1A;
+    --barra-tinta: #F7F5EF;
+    --barra-suave: #A8A08F;
+    --cat: #2F2F2F;
+    --cat-tinta: #D8A932;
+    --menos: #2F2F2F;
+    --menos-tinta: #F7F5EF;
+    --flash-mais: #CFE8C4;
+    --flash-menos: #F3CBC4;
+    --ok: #5FA35A;
+    --aviso: #D08A1C;
+    --erro: #C0483A;
+    --sombra: 0 -6px 24px rgba(26, 26, 26, .10);
+    --fonte-marca: "Big Shoulders Display", "Arial Narrow", Impact, sans-serif;
+    --fonte: "Barlow", "Segoe UI", Roboto, system-ui, sans-serif;
+    --topo: 150px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --chao: #121110;
+      --superficie: #1B1A18;
+      --superficie-2: #171614;
+      --tinta: #F2EEE4;
+      --tinta-suave: #9E978A;
+      --linha: #2C2A26;
+      --ouro: #D4A43A;
+      --barra: #0A0A09;
+      --barra-suave: #8C8577;
+      --cat: #24221F;
+      --menos: #34322E;
+      --flash-mais: #2F4A2B;
+      --flash-menos: #5A2A24;
+      --sombra: 0 -6px 24px rgba(0, 0, 0, .5);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--chao);
+    color: var(--tinta);
+    font-family: var(--fonte);
+    font-size: 16px;
+    -webkit-tap-highlight-color: transparent;
+    padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  }
+  [hidden] { display: none !important; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible {
+    outline: 2px solid var(--ouro); outline-offset: 2px;
+  }
+
+  /* ---------- topo ---------- */
+  .topo {
+    position: sticky; top: 0; z-index: 20;
+    background: var(--barra); color: var(--barra-tinta);
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .topo-inner { max-width: 760px; margin: 0 auto; padding: 12px 16px; display: grid; gap: 10px; }
+  .marca { display: flex; align-items: center; gap: 12px; }
+  .logo { flex: none; width: 94px; height: 70px; object-fit: contain; }
+  .marca-texto { border-left: 2px solid var(--ouro); padding-left: 12px; min-width: 0; }
+  .marca h1 {
+    margin: 0; font-family: var(--fonte-marca); font-weight: 800; font-size: 24px;
+    letter-spacing: .04em; line-height: 1; color: var(--ouro); text-transform: uppercase;
+  }
+  .marca p { margin: 4px 0 0; font-size: 12px; color: var(--barra-suave); letter-spacing: .02em; }
+  @media (max-width: 380px) {
+    .logo { width: 75px; height: 56px; }
+    .marca h1 { font-size: 20px; }
+  }
+  .status {
+    display: inline-flex; align-items: center; gap: 6px; margin-top: 6px;
+    font-size: 12px; color: var(--barra-suave); white-space: nowrap;
+  }
+  .status i { width: 8px; height: 8px; border-radius: 50%; background: var(--barra-suave); display: block; }
+  .status[data-s="ok"] i { background: var(--ok); }
+  .status[data-s="salvando"] i { background: var(--aviso); }
+  .status[data-s="erro"] i { background: var(--erro); }
+
+  .locais {
+    display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none;
+    margin: 0 -16px; padding: 0 16px;
+  }
+  .locais::-webkit-scrollbar { display: none; }
+  .locais button {
+    flex: none; border: 1px solid #3A3833; background: transparent; color: var(--barra-tinta);
+    border-radius: 999px; padding: 8px 14px; font-weight: 600; font-size: 14px; letter-spacing: .03em;
+  }
+  .locais button[aria-pressed="true"] { background: var(--ouro); border-color: var(--ouro); color: #1A1A1A; }
+  .busca {
+    width: 100%; border: 1px solid #3A3833; background: #242320; color: var(--barra-tinta);
+    border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 16px;
+  }
+  .busca::placeholder { color: var(--barra-suave); }
+
+  /* ---------- lista ---------- */
+  main { max-width: 760px; margin: 0 auto; }
+  .categoria {
+    position: sticky; top: var(--topo); z-index: 5;
+    background: var(--cat); color: var(--cat-tinta);
+    font-family: var(--fonte-marca); font-weight: 700; font-size: 17px; letter-spacing: .08em;
+    padding: 6px 16px; margin: 0; display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .categoria span { font-family: var(--fonte); font-size: 12px; font-weight: 500; letter-spacing: .02em; color: #A8A08F; }
+  ul.itens { list-style: none; margin: 0; padding: 0; }
+  .item {
+    display: flex; align-items: center; gap: 12px; padding: 8px 12px 8px 16px;
+    background: var(--superficie); border-bottom: 1px solid var(--linha); min-height: 64px;
+  }
+  .item:nth-child(even) { background: var(--superficie-2); }
+  .item-nome {
+    flex: 1; min-width: 0; text-align: left; background: none; border: 0; padding: 4px 0;
+    font-size: 16px; font-weight: 500; line-height: 1.25; overflow-wrap: anywhere;
+  }
+  .item-nome small { display: block; font-size: 13px; font-weight: 400; color: var(--tinta-suave); margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .contador { display: flex; align-items: center; gap: 4px; flex: none; }
+  .contador button.menos, .contador button.mais {
+    width: 46px; height: 46px; border: 0; border-radius: 12px; font-size: 26px; font-weight: 600;
+    display: grid; place-items: center; line-height: 1; touch-action: manipulation;
+  }
+  .menos { background: var(--menos); color: var(--menos-tinta); }
+  .mais { background: var(--ouro); color: var(--ouro-tinta); }
+  .menos:active, .mais:active { transform: scale(.94); }
+  .qtd {
+    min-width: 58px; height: 46px; border: 0; background: none; border-radius: 10px;
+    font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: center; padding: 0 4px;
+  }
+  .qtd.up { animation: flashMais .45s ease-out; }
+  .qtd.down { animation: flashMenos .45s ease-out; }
+  @keyframes flashMais { from { background: var(--flash-mais); } to { background: transparent; } }
+  @keyframes flashMenos { from { background: var(--flash-menos); } to { background: transparent; } }
+  input.qtd-input {
+    width: 70px; height: 46px; border: 2px solid var(--ouro); border-radius: 10px; text-align: center;
+    font: inherit; font-size: 20px; font-weight: 700; background: var(--superficie); color: var(--tinta);
+  }
+  .resumo-total { text-align: right; flex: none; font-variant-numeric: tabular-nums; }
+  .resumo-total strong { display: block; font-size: 22px; }
+  .resumo-total small { font-size: 13px; color: var(--tinta-suave); }
+
+  .aviso-vazio { padding: 48px 24px; text-align: center; color: var(--tinta-suave); max-width: 44ch; margin: 0 auto; line-height: 1.5; }
+  .aviso-vazio strong { display: block; color: var(--tinta); font-size: 18px; margin-bottom: 6px; }
+  .aviso-vazio .btn { margin-top: 16px; }
+  .esqueleto { height: 64px; border-bottom: 1px solid var(--linha); background: var(--superficie); }
+
+  /* ---------- rodapé ---------- */
+  .rodape {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+    background: var(--barra); color: var(--barra-tinta); box-shadow: var(--sombra);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .rodape-inner { max-width: 760px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 12px; }
+  .rodape-info { flex: 1; min-width: 0; }
+  .rodape-info small { display: block; font-size: 12px; color: var(--barra-suave); letter-spacing: .04em; text-transform: uppercase; }
+  .rodape-info strong { font-size: 20px; color: var(--ouro); font-variant-numeric: tabular-nums; }
+  .btn-menu {
+    border: 1px solid var(--ouro); background: transparent; color: var(--ouro);
+    border-radius: 12px; padding: 12px 18px; font-weight: 700; letter-spacing: .04em;
+  }
+
+  /* ---------- folha / modal ---------- */
+  .veu { position: fixed; inset: 0; z-index: 50; background: rgba(10, 10, 9, .55); display: flex; align-items: flex-end; justify-content: center; }
+  .folha {
+    background: var(--superficie); color: var(--tinta); width: 100%; max-width: 560px;
+    border-radius: 18px 18px 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom, 0px));
+    max-height: 92%; overflow-y: auto; display: grid; gap: 14px;
+  }
+  @media (min-width: 600px) { .veu { align-items: center; } .folha { border-radius: 18px; } }
+  .folha h2 { margin: 0; font-family: var(--fonte-marca); font-weight: 800; font-size: 24px; letter-spacing: .04em; }
+  .folha p { margin: 0; color: var(--tinta-suave); line-height: 1.5; }
+  .folha label { display: grid; gap: 6px; font-size: 14px; font-weight: 600; }
+  .folha label small { font-weight: 400; color: var(--tinta-suave); }
+  .folha input, .folha select {
+    font: inherit; font-size: 16px; padding: 11px 12px; border-radius: 10px;
+    border: 1px solid var(--linha); background: var(--chao); color: var(--tinta); width: 100%;
+  }
+  .acoes { display: grid; gap: 8px; }
+  .btn {
+    border: 0; border-radius: 12px; padding: 14px 16px; font-weight: 700; font-size: 16px; text-align: center;
+    background: var(--chao); color: var(--tinta); text-decoration: none; display: block;
+  }
+  .btn.primario { background: var(--ouro); color: #1A1A1A; }
+  .btn.perigo { background: transparent; color: var(--erro); border: 1px solid var(--erro); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .menu-lista { display: grid; gap: 2px; }
+  .menu-lista button, .menu-lista a {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
+    border: 0; background: none; padding: 12px 4px; border-bottom: 1px solid var(--linha); font-weight: 600; font-size: 17px;
+    color: var(--tinta); text-decoration: none;
+  }
+  .menu-lista small { font-weight: 400; font-size: 13px; color: var(--tinta-suave); }
+  .link-equipe {
+    font-family: ui-monospace, Consolas, monospace; font-size: 13px; word-break: break-all;
+    background: var(--chao); border: 1px solid var(--linha); border-radius: 10px; padding: 12px; user-select: all;
+  }
+  .alerta { background: var(--chao); border-left: 3px solid var(--aviso); padding: 10px 12px; border-radius: 6px; font-size: 14px; color: var(--tinta); }
+  .credito { text-align: center; font-size: 12px; color: var(--tinta-suave); letter-spacing: .03em; }
+
+  .toast {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: calc(92px + env(safe-area-inset-bottom, 0px)); z-index: 60;
+    background: var(--tinta); color: var(--chao); padding: 10px 16px; border-radius: 10px;
+    font-size: 14px; max-width: calc(100% - 32px); box-shadow: var(--sombra);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .qtd.up, .qtd.down { animation: none; }
+    .menos:active, .mais:active { transform: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topo" id="topo">
+  <div class="topo-inner">
+    <div class="marca">
+      <img class="logo" src="logo-branco.png" alt="Black Balloon music club" width="94" height="70">
+      <div class="marca-texto">
+        <h1>Iventário Estoque</h1>
+        <p>Criado por Fabio Ferraz</p>
+        <span class="status" id="status" data-s="carregando"><i></i><span>Conectando…</span></span>
+      </div>
+    </div>
+    <nav class="locais" id="locais" aria-label="Local da contagem"></nav>
+    <input class="busca" id="busca" type="search" placeholder="Buscar produto…" autocomplete="off" aria-label="Buscar produto">
+  </div>
+</header>
+
+<main id="lista" aria-live="polite">
+  <div class="esqueleto"></div><div class="esqueleto"></div><div class="esqueleto"></div><div class="esqueleto"></div>
+</main>
+
+<footer class="rodape">
+  <div class="rodape-inner">
+    <div class="rodape-info">
+      <small>Valor total do estoque</small>
+      <strong id="rodape-valor">R$ 0,00</strong>
+    </div>
+    <button class="btn-menu" id="btn-menu" type="button">MENU</button>
+  </div>
+</footer>
+
+<div id="veu" class="veu" hidden></div>
+<div id="toast" class="toast" role="status" hidden></div>
+
+<script>
+(() => {
+  const LOCAIS_PADRAO = ["BAR PISTA", "VIP01", "ESTOQUE", "VIP02"];
+  const RESUMO = "RESUMO";
+  const INTERVALO = 6000;
+  const $ = (s) => document.querySelector(s);
+
+  // ---------- armazenamento local ----------
+  function ler(k, padrao) { try { const v = localStorage.getItem("bb-" + k); return v == null ? padrao : JSON.parse(v); } catch { return padrao; } }
+  function gravar(k, v) { try { localStorage.setItem("bb-" + k, JSON.stringify(v)); } catch {} }
+
+  // config = { u: endereço do Apps Script, p: PIN, nome: quem está contando }
+  let cfg = ler("config", {}) || {};
+  importarLink(location.hash);
+
+  const S = {
+    produtos: new Map(),
+    locais: LOCAIS_PADRAO,
+    planilha: null,
+    versao: null,
+    local: ler("local", LOCAIS_PADRAO[0]),
+    busca: "",
+    carregado: false,
+    online: true,
+    editando: null,
+    assinatura: "",
+  };
+  let fila = ler("fila", []);         // alterações esperando para ir à planilha
+  const acumulado = new Map();         // toques rápidos juntados antes de enviar
+  let processando = false, atualizando = false, ultimaConfirmacao = 0, retentativa = null;
+
+  // ---------- utilidades ----------
+  const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  function fmtQtd(v) {
+    v = Math.round((Number(v) || 0) * 100) / 100;
+    return Number.isInteger(v) ? String(v) : String(v).replace(".", ",");
+  }
+  const moeda = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+  const fmtReal = (v) => moeda.format(v || 0);
+  const arred = (n) => Math.round(n * 1000) / 1000;
+  function lerNumero(txt) {
+    txt = String(txt).replace("R$", "").trim();
+    if (txt.includes(",")) txt = txt.replace(/\./g, "").replace(",", ".");
+    const n = Number(txt);
+    return txt !== "" && Number.isFinite(n) ? n : NaN;
+  }
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const qtdDe = (p, l) => Number((p.qtd || {})[l]) || 0;
+  const totalDe = (p) => arred(S.locais.reduce((s, l) => s + qtdDe(p, l), 0));
+  const valorDe = (p) => totalDe(p) * (Number(p.custo) || 0);
+  const hojeDDMM = () => { const d = new Date(); return String(d.getDate()).padStart(2, "0") + String(d.getMonth() + 1).padStart(2, "0"); };
+  const novoId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+
+  function b64url(txt) { return btoa(unescape(encodeURIComponent(txt))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
+  function deB64url(txt) { return decodeURIComponent(escape(atob(txt.replace(/-/g, "+").replace(/_/g, "/")))); }
+  function importarLink(texto) {
+    const m = String(texto || "").match(/#c=([A-Za-z0-9_-]+)/);
+    if (!m) return false;
+    try {
+      const x = JSON.parse(deB64url(m[1]));
+      if (!x.u) return false;
+      cfg = { ...cfg, u: x.u, p: x.p || "" };
+      gravar("config", cfg);
+      return true;
+    } catch { return false; }
+  }
+  const linkEquipe = () => location.origin + location.pathname + "#c=" + b64url(JSON.stringify({ u: cfg.u, p: cfg.p || "" }));
+
+  let toastTimer;
+  function toast(msg) {
+    const t = $("#toast");
+    t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => (t.hidden = true), 3500);
+  }
+  function status(s, txt) { const el = $("#status"); el.dataset.s = s; el.querySelector("span").textContent = txt; }
+  function statusPadrao() {
+    const pend = fila.length + acumulado.size;
+    if (!cfg.u) status("erro", "Não configurado");
+    else if (!S.online) status("erro", pend ? `Sem internet · ${pend} alteração(ões) na fila` : "Sem internet");
+    else if (pend || processando) status("salvando", "Salvando na planilha…");
+    else if (!S.carregado) status("carregando", "Carregando…");
+    else status("ok", "Sincronizado");
+  }
+
+  // ---------- comunicação com a planilha ----------
+  async function api(acao, dados = {}) {
+    if (!cfg.u) throw { code: "config", message: "Configure a planilha no MENU." };
+    const corpo = { acao, pin: cfg.p || "", quem: cfg.nome || "", ...dados };
+    let resp;
+    try {
+      resp = acao === "listar"
+        ? await fetch(cfg.u + (cfg.u.includes("?") ? "&" : "?") + new URLSearchParams(corpo), { cache: "no-store" })
+        : await fetch(cfg.u, { method: "POST", body: JSON.stringify(corpo) });
+    } catch { throw { code: "rede", message: "Sem conexão com a planilha." }; }
+    let j;
+    try { j = await resp.json(); } catch { throw { code: "rede", message: "A planilha não respondeu direito." }; }
+    if (!j.ok) throw { code: j.erro || "servidor", message: j.mensagem || "A planilha recusou a alteração." };
+    return j;
+  }
+
+  async function atualizar(forcar) {
+    if (!cfg.u || atualizando) return;
+    if (!forcar && (fila.length || acumulado.size || processando)) return;
+    atualizando = true;
+    const inicio = Date.now();
+    try {
+      const j = await api("listar", forcar ? {} : { v: S.versao || "" });
+      S.online = true;
+      // descarta leituras que começaram antes de uma alteração nossa ser confirmada
+      if (inicio < ultimaConfirmacao || fila.length || acumulado.size || processando) return;
+      if (!j.igual) aplicarLista(j);
+      S.versao = j.versao;
+    } catch (e) {
+      if (e.code === "rede") S.online = false;
+      else if (e.code === "pin") { toast(e.message); abrirConfig(); }
+      else toast(e.message);
+    } finally {
+      atualizando = false;
+      statusPadrao();
+    }
+  }
+
+  function aplicarLista(j) {
+    S.locais = j.locais && j.locais.length ? j.locais : LOCAIS_PADRAO;
+    S.planilha = j.planilha || null;
+    const novo = new Map();
+    j.produtos.forEach((p, i) => novo.set(p.id, { ...p, ordem: i }));
+    S.produtos = novo;
+    S.carregado = true;
+    renderLocais();
+    render(false);
+    gravar("cache", { locais: S.locais, planilha: S.planilha, produtos: [...S.produtos.values()] });
+  }
+
+  // valor na tela = valor confirmado pela planilha + alterações que ainda não chegaram lá
+  function projetar(id, local, base) {
+    let v = base;
+    for (const op of fila) {
+      if (op.id !== id || op.local !== local) continue;
+      v = op.acao === "mover" ? Math.max(0, arred(v + op.delta)) : op.valor;
+    }
+    const a = acumulado.get(id + "|" + local);
+    if (a) v = Math.max(0, arred(v + a.delta));
+    return v;
+  }
+
+  function enfileirar(op) {
+    op.uid = novoId();
+    fila.push(op);
+    gravar("fila", fila);
+    statusPadrao();
+    processar();
+  }
+
+  function soltarAcumulado(chave) {
+    const a = acumulado.get(chave);
+    if (!a) return;
+    clearTimeout(a.timer);
+    acumulado.delete(chave);
+    if (a.delta) enfileirar({ acao: "mover", id: a.id, local: a.local, delta: a.delta });
+  }
+  function soltarTudo() { for (const k of [...acumulado.keys()]) soltarAcumulado(k); }
+
+  async function processar() {
+    if (processando || !fila.length) return;
+    processando = true;
+    clearTimeout(retentativa);
+    try {
+      while (fila.length) {
+        const op = fila[0];
+        let j;
+        try {
+          j = await api(op.acao, op);
+        } catch (e) {
+          if (e.code === "rede") {
+            S.online = false;
+            retentativa = setTimeout(processar, 5000);
+            return;
+          }
+          fila.shift(); gravar("fila", fila);
+          toast(e.message);
+          if (e.code === "pin") abrirConfig();
+          S.versao = null;
+          continue;
+        }
+        fila.shift(); gravar("fila", fila);
+        S.online = true;
+        ultimaConfirmacao = Date.now();
+        const p = S.produtos.get(op.id);
+        if (p && j.valor !== undefined) {
+          p.qtd = { ...p.qtd, [op.local]: projetar(op.id, op.local, j.valor) };
+          atualizarNumeros(op.id);
+          renderRodape();
+        }
+      }
+    } finally {
+      processando = false;
+      statusPadrao();
+    }
+  }
+
+  // ---------- topo ----------
+  function renderLocais() {
+    const opcoes = [...S.locais, RESUMO];
+    if (!opcoes.includes(S.local)) S.local = opcoes[0];
+    $("#locais").innerHTML = opcoes.map((l) =>
+      `<button type="button" data-local="${esc(l)}" aria-pressed="${l === S.local}">${esc(l)}</button>`).join("");
+  }
+  $("#locais").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-local]");
+    if (!b) return;
+    S.local = b.dataset.local;
+    gravar("local", S.local);
+    renderLocais();
+    render(true);
+    window.scrollTo({ top: 0 });
+  });
+  let buscaTimer;
+  $("#busca").addEventListener("input", (e) => {
+    clearTimeout(buscaTimer);
+    buscaTimer = setTimeout(() => { S.busca = e.target.value; render(true); }, 150);
+  });
+  new ResizeObserver(() => {
+    document.documentElement.style.setProperty("--topo", $("#topo").offsetHeight + "px");
+  }).observe($("#topo"));
+
+  // ---------- lista ----------
+  function grupos(ignorarBusca) {
+    const termo = ignorarBusca ? "" : norm(S.busca.trim());
+    const ordem = [];
+    const mapa = new Map();
+    const itens = [...S.produtos.values()].sort((a, b) => a.ordem - b.ordem);
+    for (const p of itens) {
+      if (!mapa.has(p.categoria)) { mapa.set(p.categoria, []); ordem.push(p.categoria); }
+      if (!termo || norm(p.nome).includes(termo)) mapa.get(p.categoria).push(p);
+    }
+    return ordem.map((nome) => ({ nome, itens: mapa.get(nome) })).filter((g) => g.itens.length);
+  }
+  const categorias = () => [...new Set([...S.produtos.values()].sort((a, b) => a.ordem - b.ordem).map((p) => p.categoria))];
+  function assinatura() {
+    return [S.local, S.busca, ...[...S.produtos.values()].map((p) => p.id + "|" + p.nome + "|" + p.categoria + "|" + p.ordem)].join("§");
+  }
+  function subtexto(p) {
+    if (S.local === RESUMO) return S.locais.map((l) => `${l} ${fmtQtd(qtdDe(p, l))}`).join(" · ");
+    const partes = [];
+    if (p.custo) partes.push(fmtReal(p.custo));
+    partes.push("total " + fmtQtd(totalDe(p)));
+    return partes.join(" · ");
+  }
+  function linhaHTML(p) {
+    if (S.local === RESUMO) {
+      return `<li class="item" data-id="${esc(p.id)}">
+        <button class="item-nome" type="button" data-acao="editar">${esc(p.nome)}<small data-sub>${esc(subtexto(p))}</small></button>
+        <div class="resumo-total"><strong data-total>${fmtQtd(totalDe(p))}</strong><small data-valor>${fmtReal(valorDe(p))}</small></div>
+      </li>`;
+    }
+    return `<li class="item" data-id="${esc(p.id)}">
+      <button class="item-nome" type="button" data-acao="editar">${esc(p.nome)}<small data-sub>${esc(subtexto(p))}</small></button>
+      <div class="contador">
+        <button class="menos" type="button" data-acao="menos" aria-label="Tirar 1 de ${esc(p.nome)}">−</button>
+        <button class="qtd" type="button" data-acao="digitar" data-qtd aria-label="Quantidade de ${esc(p.nome)} em ${esc(S.local)}">${fmtQtd(qtdDe(p, S.local))}</button>
+        <button class="mais" type="button" data-acao="mais" aria-label="Somar 1 a ${esc(p.nome)}">+</button>
+      </div>
+    </li>`;
+  }
+  function render(forcar) {
+    const main = $("#lista");
+    const ass = assinatura();
+    if (forcar || ass !== S.assinatura || !main.querySelector(".item")) {
+      S.assinatura = ass;
+      S.editando = null;
+      if (!cfg.u) {
+        main.innerHTML = `<div class="aviso-vazio"><strong>Conecte a planilha</strong>Abra o link que a gerência mandou ou configure o endereço da planilha.<button class="btn primario" type="button" data-config>Configurar</button></div>`;
+      } else if (!S.carregado) {
+        if (!S.online) main.innerHTML = `<div class="aviso-vazio"><strong>Sem conexão com a planilha</strong>Verifique a internet. O app tenta de novo sozinho.</div>`;
+        return;
+      } else if (!S.produtos.size) {
+        main.innerHTML = `<div class="aviso-vazio"><strong>Nenhum produto cadastrado</strong>Use MENU → Novo produto para começar.</div>`;
+      } else {
+        const gs = grupos();
+        main.innerHTML = gs.length ? gs.map((g) => {
+          const n = g.itens.length;
+          return `<h2 class="categoria">${esc(g.nome.toUpperCase())}<span>${n} ${n === 1 ? "item" : "itens"}</span></h2>
+            <ul class="itens">${g.itens.map(linhaHTML).join("")}</ul>`;
+        }).join("") : `<div class="aviso-vazio"><strong>Nada encontrado</strong>Nenhum produto com “${esc(S.busca)}”.</div>`;
+      }
+    } else {
+      atualizarNumeros();
+    }
+    renderRodape();
+  }
+  function atualizarNumeros(soId) {
+    for (const li of document.querySelectorAll(".item[data-id]")) {
+      const id = li.dataset.id;
+      if (soId && id !== soId) continue;
+      const p = S.produtos.get(id);
+      if (!p) continue;
+      const sub = li.querySelector("[data-sub]");
+      if (sub) sub.textContent = subtexto(p);
+      const q = li.querySelector("[data-qtd]");
+      if (q && S.editando !== id) q.textContent = fmtQtd(qtdDe(p, S.local));
+      const t = li.querySelector("[data-total]");
+      if (t) t.textContent = fmtQtd(totalDe(p));
+      const v = li.querySelector("[data-valor]");
+      if (v) v.textContent = fmtReal(valorDe(p));
+    }
+  }
+  function renderRodape() {
+    let valor = 0;
+    for (const p of S.produtos.values()) valor += valorDe(p);
+    $("#rodape-valor").textContent = fmtReal(valor);
+  }
+
+  // ---------- contagem ----------
+  $("#lista").addEventListener("click", (e) => {
+    if (e.target.closest("[data-config]")) return abrirConfig();
+    const b = e.target.closest("[data-acao]");
+    if (!b) return;
+    const p = S.produtos.get(b.closest(".item")?.dataset.id);
+    if (!p) return;
+    const acao = b.dataset.acao;
+    if (acao === "mais" || acao === "menos") {
+      mover(p, S.local, acao === "mais" ? 1 : -1);
+      const q = b.parentElement.querySelector("[data-qtd]");
+      q.classList.remove("up", "down"); void q.offsetWidth;
+      q.classList.add(acao === "mais" ? "up" : "down");
+      try { navigator.vibrate && navigator.vibrate(8); } catch {}
+      manterTelaAcesa();
+    } else if (acao === "digitar") {
+      digitar(b, p);
+    } else if (acao === "editar") {
+      editarProduto(p);
+    }
+  });
+
+  function mover(p, local, delta) {
+    const antes = qtdDe(p, local);
+    const depois = Math.max(0, arred(antes + delta));
+    if (depois === antes) return;
+    p.qtd = { ...p.qtd, [local]: depois };
+    atualizarNumeros(p.id);
+    renderRodape();
+    const chave = p.id + "|" + local;
+    const a = acumulado.get(chave) || { id: p.id, local, delta: 0, timer: null };
+    a.delta = arred(a.delta + (depois - antes));
+    clearTimeout(a.timer);
+    a.timer = setTimeout(() => soltarAcumulado(chave), 450);
+    acumulado.set(chave, a);
+    statusPadrao();
+  }
+
+  function digitar(botao, p) {
+    const local = S.local;
+    S.editando = p.id;
+    const inp = document.createElement("input");
+    inp.className = "qtd-input";
+    inp.inputMode = "decimal";
+    inp.value = fmtQtd(qtdDe(p, local));
+    inp.setAttribute("aria-label", `Quantidade de ${p.nome} em ${local}`);
+    botao.replaceWith(inp);
+    inp.focus(); inp.select();
+    let feito = false;
+    const concluir = (salvar) => {
+      if (feito) return; feito = true;
+      S.editando = null;
+      if (salvar) {
+        const n = lerNumero(inp.value);
+        if (Number.isNaN(n) || n < 0) toast("Quantidade inválida. Use números, ex.: 12 ou 0,8.");
+        else if (arred(n) !== qtdDe(p, local)) {
+          soltarAcumulado(p.id + "|" + local);
+          p.qtd = { ...p.qtd, [local]: arred(n) };
+          enfileirar({ acao: "definir", id: p.id, local, valor: arred(n) });
+          atualizarNumeros(p.id); renderRodape();
+        }
+      }
+      inp.replaceWith(botao);
+      botao.textContent = fmtQtd(qtdDe(p, local));
+    };
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") concluir(true);
+      if (e.key === "Escape") concluir(false);
+    });
+    inp.addEventListener("blur", () => concluir(true));
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") soltarTudo();
+    else { atualizar(); if (telaPedida) manterTelaAcesa(true); }
+  });
+  window.addEventListener("pagehide", soltarTudo);
+  window.addEventListener("online", () => { S.online = true; processar(); atualizar(); });
+
+  let telaPedida = false;
+  async function manterTelaAcesa(forcar) {
+    if ((telaPedida && !forcar) || !("wakeLock" in navigator)) return;
+    telaPedida = true;
+    try { await navigator.wakeLock.request("screen"); } catch {}
+  }
+
+  // ---------- folhas ----------
+  function abrirFolha(html, ligar) {
+    const veu = $("#veu");
+    veu.innerHTML = `<div class="folha" role="dialog" aria-modal="true">${html}</div>`;
+    veu.hidden = false;
+    const folha = veu.querySelector(".folha");
+    ligar && ligar(folha);
+    const foco = folha.querySelector("input, select, button");
+    foco && foco.focus();
+  }
+  function fecharFolha() { const v = $("#veu"); v.hidden = true; v.innerHTML = ""; }
+  $("#veu").addEventListener("click", (e) => { if (e.target.id === "veu") fecharFolha(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#veu").hidden) fecharFolha(); });
+
+  $("#btn-menu").addEventListener("click", () => {
+    const conectado = !!cfg.u;
+    abrirFolha(`
+      <h2>Menu</h2>
+      <div class="menu-lista">
+        ${conectado ? `<button type="button" data-m="novo">Novo produto<small>Cadastrar um item em uma categoria</small></button>
+        <button type="button" data-m="exportar">Exportar Excel<small>Planilha no mesmo formato, aba ${hojeDDMM()}</small></button>
+        ${S.planilha ? `<a href="${esc(S.planilha)}" target="_blank" rel="noopener">Abrir planilha no Google<small>Ver a aba ESTOQUE, o HISTÓRICO e as contagens antigas</small></a>` : ""}
+        <button type="button" data-m="equipe">Link da equipe<small>Quem tiver o link consegue contar e alterar</small></button>
+        <button type="button" data-m="zerar">Zerar contagem<small>Guarda a contagem numa aba ${hojeDDMM()} e zera tudo</small></button>` : ""}
+        <button type="button" data-m="config">Configurações<small>${conectado ? "Seu nome e conexão com a planilha" : "Conectar à planilha"}</small></button>
+      </div>
+      <button class="btn" type="button" data-m="fechar">Fechar</button>
+      <p class="credito">Iventário Estoque Black Balloon · criado por Fabio Ferraz</p>`, (f) => {
+      f.addEventListener("click", (e) => {
+        const m = e.target.closest("[data-m]")?.dataset.m;
+        if (m === "fechar") fecharFolha();
+        if (m === "novo") formProduto(null);
+        if (m === "exportar") { fecharFolha(); exportar(); }
+        if (m === "equipe") mostrarLinkEquipe();
+        if (m === "zerar") zerar();
+        if (m === "config") abrirConfig();
+      });
+    });
+  });
+
+  function abrirConfig() {
+    abrirFolha(`<h2>Configurações</h2>
+      <form id="f" class="acoes" style="gap:14px">
+        <label>Seu nome<small>Aparece no histórico da planilha ao lado de cada alteração.</small>
+          <input id="c-nome" value="${esc(cfg.nome || "")}" autocomplete="name" placeholder="ex.: Fabio"></label>
+        <label>Link da equipe ou endereço da planilha<small>Cole o link que você recebeu, ou o endereço do Apps Script (termina em /exec).</small>
+          <input id="c-url" value="${esc(cfg.u || "")}" autocomplete="off" inputmode="url" placeholder="https://script.google.com/macros/s/…/exec"></label>
+        <label>Código de acesso (PIN)<small>O mesmo PIN escrito no código da planilha. Já vem dentro do link da equipe.</small>
+          <input id="c-pin" value="${esc(cfg.p || "")}" autocomplete="off" inputmode="numeric"></label>
+        <div class="acoes">
+          <button class="btn primario" type="submit">Salvar e conectar</button>
+          <button class="btn" type="button" data-cancelar>Cancelar</button>
+        </div>
+      </form>`, (f) => {
+      f.querySelector("[data-cancelar]").onclick = fecharFolha;
+      f.querySelector("#f").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const nome = f.querySelector("#c-nome").value.trim();
+        let url = f.querySelector("#c-url").value.trim();
+        let pin = f.querySelector("#c-pin").value.trim();
+        if (/#c=/.test(url)) {
+          const antes = { ...cfg };
+          if (importarLink(url)) { url = cfg.u; pin = cfg.p || ""; } else cfg = antes;
+        }
+        if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)) return toast("O endereço precisa começar com https://script.google.com/");
+        const btn = f.querySelector("[type=submit]"); btn.disabled = true; btn.textContent = "Conectando…";
+        const anterior = cfg;
+        cfg = { u: url, p: pin, nome };
+        try {
+          const j = await api("listar");
+          gravar("config", cfg);
+          S.versao = j.versao; S.online = true;
+          aplicarLista(j);
+          if (!location.hash.includes("#c=")) history.replaceState(null, "", linkEquipe());
+          fecharFolha(); toast("Conectado à planilha.");
+        } catch (err) {
+          cfg = anterior;
+          btn.disabled = false; btn.textContent = "Salvar e conectar";
+          toast(err.code === "rede"
+            ? "Não consegui falar com a planilha. Confira o endereço e se a implantação está como “Qualquer pessoa”."
+            : err.message);
+        }
+        statusPadrao();
+      });
+    });
+  }
+
+  function mostrarLinkEquipe() {
+    const link = linkEquipe();
+    abrirFolha(`<h2>Link da equipe</h2>
+      <p>Mande este link para quem vai contar. Quem abrir consegue ver e alterar o estoque — não precisa de conta.</p>
+      <div class="link-equipe" id="link">${esc(link)}</div>
+      <p class="alerta">O link já leva o PIN. Não publique em lugar aberto; se vazar, troque o PIN no código da planilha e mande um link novo.</p>
+      <div class="acoes">
+        ${navigator.share ? `<button class="btn primario" type="button" data-l="compartilhar">Compartilhar (WhatsApp…)</button>` : ""}
+        <button class="btn ${navigator.share ? "" : "primario"}" type="button" data-l="copiar">Copiar link</button>
+        <button class="btn" type="button" data-l="fechar">Fechar</button>
+      </div>`, (f) => {
+      f.addEventListener("click", async (e) => {
+        const l = e.target.closest("[data-l]")?.dataset.l;
+        if (l === "fechar") fecharFolha();
+        if (l === "copiar") {
+          try { await navigator.clipboard.writeText(link); toast("Link copiado."); }
+          catch { const r = document.createRange(); r.selectNodeContents(f.querySelector("#link")); getSelection().removeAllRanges(); getSelection().addRange(r); toast("Selecionei o link — copie com Ctrl+C."); }
+        }
+        if (l === "compartilhar") {
+          try { await navigator.share({ title: "Iventário Estoque Black Balloon", text: "Link para a contagem do estoque:", url: link }); } catch {}
+        }
+      });
+    });
+  }
+
+  function opcoesCategoria(atual) {
+    return categorias().map((c) => `<option ${c === atual ? "selected" : ""}>${esc(c)}</option>`).join("")
+      + `<option value="__nova__">+ Nova categoria…</option>`;
+  }
+
+  function formProduto(p) {
+    abrirFolha(`<h2>${p ? "Editar produto" : "Novo produto"}</h2>
+      <form id="f" class="acoes" style="gap:14px">
+        <label>Nome<input id="f-nome" value="${esc(p ? p.nome : "")}" autocomplete="off" required></label>
+        <label>Categoria<select id="f-cat">${opcoesCategoria(p ? p.categoria : categorias()[0])}</select></label>
+        <label id="f-cat-nova" hidden>Nome da nova categoria<input autocomplete="off"></label>
+        <label>Custo unitário (R$)<input id="f-custo" inputmode="decimal" value="${p && p.custo ? fmtQtd(p.custo) : ""}" placeholder="ex.: 4,99" autocomplete="off"></label>
+        <div class="acoes">
+          <button class="btn primario" type="submit">${p ? "Salvar" : "Adicionar"}</button>
+          <button class="btn" type="button" data-cancelar>Cancelar</button>
+          ${p ? `<button class="btn perigo" type="button" data-remover>Remover produto</button>` : ""}
+        </div>
+      </form>`, (f) => {
+      const sel = f.querySelector("#f-cat"), nova = f.querySelector("#f-cat-nova");
+      sel.addEventListener("change", () => { nova.hidden = sel.value !== "__nova__"; if (!nova.hidden) nova.querySelector("input").focus(); });
+      f.querySelector("[data-cancelar]").onclick = fecharFolha;
+      if (p) f.querySelector("[data-remover]").onclick = () => confirmarRemocao(p);
+      f.querySelector("#f").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const nome = f.querySelector("#f-nome").value.trim();
+        const categoria = sel.value === "__nova__" ? nova.querySelector("input").value.trim() : sel.value;
+        const custoTxt = f.querySelector("#f-custo").value.trim();
+        const custo = custoTxt ? lerNumero(custoTxt) : 0;
+        if (!nome || !categoria) return toast("Preencha o nome e a categoria.");
+        if (Number.isNaN(custo) || custo < 0) return toast("Custo inválido. Use o formato 4,99.");
+        const btn = f.querySelector("[type=submit]"); btn.disabled = true; btn.textContent = "Salvando…";
+        try {
+          await api("salvarProduto", { id: p ? p.id : "", nome, categoria, custo, uid: novoId() });
+          fecharFolha(); toast(p ? "Produto atualizado." : `“${nome}” adicionado em ${categoria}.`);
+          atualizar(true);
+        } catch (err) {
+          btn.disabled = false; btn.textContent = p ? "Salvar" : "Adicionar";
+          toast(err.code === "rede" ? "Sem internet. Tente de novo quando conectar." : err.message);
+        }
+      });
+    });
+  }
+  const editarProduto = (p) => formProduto(p);
+
+  function confirmarRemocao(p) {
+    abrirFolha(`<h2>Remover produto?</h2>
+      <p>“${esc(p.nome)}” sai da planilha e da lista de todos os celulares.</p>
+      <div class="acoes"><button class="btn perigo" type="button" data-sim>Remover</button>
+      <button class="btn" type="button" data-nao>Cancelar</button></div>`, (f) => {
+      f.querySelector("[data-nao]").onclick = fecharFolha;
+      f.querySelector("[data-sim]").onclick = async (e) => {
+        e.target.disabled = true;
+        try { await api("removerProduto", { id: p.id, uid: novoId() }); fecharFolha(); toast("Produto removido."); atualizar(true); }
+        catch (err) { e.target.disabled = false; toast(err.code === "rede" ? "Sem internet. Tente de novo." : err.message); }
+      };
+    });
+  }
+
+  function zerar() {
+    abrirFolha(`<h2>Zerar contagem?</h2>
+      <p>A contagem atual fica guardada numa aba <strong>${hojeDDMM()}</strong> da planilha do Google, como na planilha original. Depois todas as quantidades voltam a 0 em todos os locais.</p>
+      <div class="acoes">
+        <button class="btn perigo" type="button" data-z="sim">Guardar e zerar</button>
+        <button class="btn" type="button" data-z="exportar">Baixar Excel antes</button>
+        <button class="btn" type="button" data-z="nao">Cancelar</button>
+      </div>`, (f) => {
+      f.addEventListener("click", async (e) => {
+        const z = e.target.closest("[data-z]")?.dataset.z;
+        if (z === "nao") return fecharFolha();
+        if (z === "exportar") return exportar();
+        if (z !== "sim") return;
+        f.querySelectorAll("button").forEach((b) => (b.disabled = true));
+        const txt = f.querySelector("p");
+        txt.textContent = "Enviando alterações pendentes…";
+        soltarTudo();
+        for (let i = 0; i < 60 && (fila.length || processando); i++) {
+          if (!processando) processar();
+          await new Promise((r) => setTimeout(r, 300));
+          if (!S.online) break;
+        }
+        if (fila.length || processando) {
+          f.querySelectorAll("button").forEach((b) => (b.disabled = false));
+          txt.textContent = "Ainda há alterações sem enviar (sem internet). Tente de novo quando conectar.";
+          return;
+        }
+        txt.textContent = "Guardando a contagem e zerando…";
+        try {
+          const j = await api("zerar", { uid: novoId() });
+          fecharFolha(); toast(`Contagem guardada na aba ${j.aba} e zerada.`);
+          atualizar(true);
+        } catch (err) {
+          f.querySelectorAll("button").forEach((b) => (b.disabled = false));
+          txt.textContent = err.code === "rede" ? "Sem internet. Tente de novo." : err.message;
+        }
+      });
+    });
+  }
+
+  // ---------- exportar ----------
+  function carregarExcelJS() {
+    if (window.ExcelJS) return Promise.resolve();
+    return new Promise((ok, falha) => {
+      const s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js";
+      s.onload = ok; s.onerror = falha;
+      document.head.appendChild(s);
+    });
+  }
+  const letra = (n) => { let s = ""; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
+
+  async function exportar() {
+    if (!S.produtos.size) return toast("Não há produtos para exportar.");
+    toast("Gerando planilha…");
+    try { await carregarExcelJS(); }
+    catch { return toast("Não foi possível carregar o gerador de Excel. Verifique a internet."); }
+
+    const ls = S.locais;
+    const aba = hojeDDMM();
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "Iventário Estoque Black Balloon — Fabio Ferraz";
+    const ws = wb.addWorksheet(aba, { views: [{ state: "frozen", xSplit: 1, ySplit: 1 }] });
+    const cab = ["PRODUTOS", ...ls, "TOTAL", "CUSTO", "VALOR TOTAL"];
+    const nc = cab.length;
+    const cIni = letra(2), cFim = letra(1 + ls.length), cTot = letra(2 + ls.length), cCusto = letra(3 + ls.length), cValor = letra(4 + ls.length);
+    const fmtMoeda = '[$R$ -416]#,##0.00';
+    const fino = { style: "thin", color: { argb: "FFD9D9D9" } };
+    const borda = { top: fino, left: fino, bottom: fino, right: fino };
+    const solido = (argb) => ({ type: "pattern", pattern: "solid", fgColor: { argb } });
+
+    ws.columns = cab.map((_, i) => ({ width: i === 0 ? 36 : i === nc - 1 ? 16 : 13 }));
+    const h = ws.addRow(cab);
+    h.height = 24;
+    h.eachCell((c, i) => {
+      c.font = { name: "Arial", size: 11, bold: true, color: { argb: "FFC9971E" } };
+      c.fill = solido("FF1A1A1A");
+      c.alignment = { vertical: "middle", horizontal: i === 1 ? "left" : "center" };
+    });
+    let valorGeral = 0;
+    for (const g of grupos(true)) {
+      const r = ws.addRow([g.nome]);
+      for (let i = 1; i <= nc; i++) { const c = r.getCell(i); c.fill = solido("FF2F2F2F"); c.border = borda; }
+      r.getCell(1).font = { name: "Arial", size: 10, bold: true, color: { argb: "FFC9971E" } };
+      g.itens.forEach((p, k) => {
+        const row = ws.addRow([]);
+        const n = row.number;
+        const total = totalDe(p), valor = valorDe(p);
+        valorGeral += valor;
+        const vals = [p.nome, ...ls.map((l) => qtdDe(p, l)),
+          { formula: `SUM(${cIni}${n}:${cFim}${n})`, result: total },
+          p.custo || null,
+          { formula: `${cTot}${n}*${cCusto}${n}`, result: valor }];
+        vals.forEach((v, i) => {
+          const c = row.getCell(i + 1);
+          c.value = v;
+          c.font = { name: "Arial", size: 10, bold: i === ls.length + 1 };
+          c.fill = solido(k % 2 === 0 ? "FFFFFFFF" : "FFF7F5EF");
+          c.border = borda;
+          if (i > 0) c.alignment = { horizontal: "center" };
+          if (i >= ls.length + 2) c.numFmt = fmtMoeda;
+        });
+      });
+    }
+    const ultima = ws.lastRow.number;
+    const t = ws.addRow(["TOTAL GERAL"]);
+    t.getCell(nc).value = { formula: `SUM(${cValor}2:${cValor}${ultima})`, result: valorGeral };
+    for (let i = 1; i <= nc; i++) {
+      const c = t.getCell(i);
+      c.font = { name: "Arial", size: 11, bold: true, color: { argb: "FFC9971E" } };
+      c.fill = solido("FF1A1A1A");
+    }
+    t.getCell(nc).numFmt = fmtMoeda;
+
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `Contagem Black Balloon ${aba}.xlsx`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    toast("Planilha baixada.");
+  }
+
+  // ---------- início ----------
+  function iniciar() {
+    const c = ler("cache", null);
+    if (c && Array.isArray(c.produtos) && cfg.u) {
+      S.locais = c.locais || LOCAIS_PADRAO;
+      S.planilha = c.planilha || null;
+      c.produtos.forEach((p) => S.produtos.set(p.id, p));
+      for (const op of fila) {
+        const p = S.produtos.get(op.id);
+        if (p) p.qtd = { ...p.qtd, [op.local]: op.acao === "mover" ? Math.max(0, arred(qtdDe(p, op.local) + op.delta)) : op.valor };
+      }
+      S.carregado = true;
+    }
+    renderLocais();
+    render(true);
+    statusPadrao();
+    if (!cfg.u) return abrirConfig();
+    if (fila.length) processar().then(() => atualizar(true));
+    else atualizar(true);
+    setInterval(() => { if (document.visibilityState === "visible") { processar(); atualizar(); } }, INTERVALO);
+  }
+  iniciar();
+
+  if ("serviceWorker" in navigator && location.protocol === "https:") {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>
